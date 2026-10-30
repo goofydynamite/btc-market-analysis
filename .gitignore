@@ -1,0 +1,14 @@
+# Raw Kaggle data (394 MB) - download it yourself, see README
+data/raw/
+# Large generated files - rebuilt by run_all.py
+data/processed/btc_minute.parquet
+data/processed/btc_hourly.csv
+data/processed/btc.sqlite
+__pycache__/
+.ipynb_checkpoints/
+
+# Tableau working files (the published copy lives in tableau/)
+/bitcoinanalysis.twb
+~*.twbr
+*.twbr
+readme_preview.html
