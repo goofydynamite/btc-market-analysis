@@ -1,0 +1,659 @@
+<title>Bitcoin Market Intelligence</title>
+<meta name="description" content="14 years of minute-level BTC/USD data turned into product and risk decisions for a retail crypto app.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,500..800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: an analyst's market brief. Header + KPI strip, then one band per stakeholder question
+   (chart left, findings + decision right), closing with the decision table. */
+:root {
+  --bg: #f3f4f5;
+  --panel: #fcfcfc;
+  --ink: #0e1116;
+  --ink-2: #4a515b;
+  --muted: #7d848d;
+  --line: #e0e2e5;
+  --axis: #c3c6cb;
+  --blue: #2a78d6;
+  --orange: #eb6834;
+  --aqua: #1baf7a;
+  --yellow: #eda100;
+  --neg: #d03b3b;
+  --pos: #0f7a0f;
+  --decision-bg: #e8f0fb;
+  --calm: #9ec5f4;
+  --band-1: #dbe8f8;
+  --band-2: #b3cff2;
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1012; --panel: #16191c; --ink: #eef0f2; --ink-2: #b8bec5; --muted: #858c94;
+    --line: #272b30; --axis: #3a3f45; --blue: #3987e5; --orange: #d95926; --aqua: #199e70;
+    --yellow: #c98500; --neg: #e66767; --pos: #0ca30c; --decision-bg: #172434; --calm: #1c5cab; --band-1: #1a2a3d; --band-2: #23446b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1012; --panel: #16191c; --ink: #eef0f2; --ink-2: #b8bec5; --muted: #858c94;
+  --line: #272b30; --axis: #3a3f45; --blue: #3987e5; --orange: #d95926; --aqua: #199e70;
+  --yellow: #c98500; --neg: #e66767; --pos: #0ca30c; --decision-bg: #172434; --calm: #1c5cab; --band-1: #1a2a3d; --band-2: #23446b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 1160px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(30px, 5vw, 48px); font-weight: 800; font-stretch: 78%; line-height: 1.02; text-transform: uppercase; }
+h2 { font-size: clamp(21px, 2.6vw, 27px); font-weight: 700; font-stretch: 88%; line-height: 1.15; }
+h3 { font-size: 15px; font-weight: 700; font-stretch: 100%; }
+p { margin: 0; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font: 500 11.5px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+header.top { display: grid; gap: 14px; padding-bottom: 6px; }
+header.top .lede { color: var(--ink-2); max-width: 70ch; font-size: 16px; }
+.ticker { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 12px var(--font-mono); color: var(--muted); }
+.ticker b { color: var(--ink); font-weight: 500; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); }
+.kpi { padding: 16px 18px; display: grid; gap: 4px; border-left: 1px solid var(--line); }
+.kpi:first-child { border-left: 0; }
+.kpi .v { font: 600 clamp(22px, 2.6vw, 28px)/1.1 var(--font-body); }
+.kpi .s { font-size: 12.5px; color: var(--ink-2); }
+.neg { color: var(--neg); } .pos { color: var(--pos); }
+
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; }
+nav.toc a { font: 500 12.5px var(--font-mono); color: var(--ink-2); text-decoration: none; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); }
+nav.toc a:hover, nav.toc a:focus-visible { color: var(--ink); border-color: var(--axis); outline: none; }
+
+section.q { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 22px; display: grid; gap: 18px; scroll-margin-top: 16px; }
+.qhead { display: grid; gap: 6px; }
+.qhead .ask { color: var(--ink-2); max-width: 75ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.findings { display: grid; gap: 14px; min-width: 0; }
+.findings ul { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--ink-2); }
+.findings li b { color: var(--ink); font-weight: 600; }
+.decision { background: var(--decision-bg); border-radius: 8px; padding: 14px 16px; display: grid; gap: 4px; }
+.decision p { font-size: 14px; }
+
+.chart { position: relative; height: 320px; min-width: 0; }
+.chart.sm { height: 220px; }
+.chart.xs { height: 170px; }
+.ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { font: 500 12px var(--font-mono); color: var(--ink-2); background: transparent; border: 0; padding: 6px 10px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.tablewrap { overflow-x: auto; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font: 500 11px var(--font-mono); letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+th:first-child, td:first-child { text-align: left; }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td.txt { font-family: var(--font-body); white-space: normal; text-align: left; }
+#t-dec th, #t-sig th { text-align: left; }
+
+/* heatmaps */
+.hm { display: grid; gap: 2px; font: 11px var(--font-mono); color: var(--muted); min-width: 520px; }
+.hm .cell { height: 26px; border-radius: 3px; }
+.hm .rl { display: flex; align-items: center; padding-right: 6px; }
+.hm .cl { text-align: center; }
+.hmwrap { overflow-x: auto; }
+.cohort { min-width: 460px; }
+.cohort .cell { height: 13px; border-radius: 2px; }
+.scale { display: flex; align-items: center; gap: 8px; font: 11px var(--font-mono); color: var(--muted); }
+.scale .bar { height: 8px; width: 160px; border-radius: 4px; }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--panel); font: 12px/1.4 var(--font-mono); padding: 6px 9px; border-radius: 6px; max-width: 240px; }
+
+/* calculator */
+.calc { border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: grid; gap: 14px; }
+.calc .inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.calc label { display: grid; gap: 4px; font-size: 12px; color: var(--ink-2); }
+.calc select, .calc input { font: 14px var(--font-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; width: 100%; }
+.calc select:focus-visible, .calc input:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.out { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.out div { display: grid; gap: 2px; }
+.out .v { font: 600 18px var(--font-body); }
+.out .l { font-size: 11.5px; color: var(--muted); }
+
+.divider { display: grid; gap: 6px; padding-top: 18px; border-top: 2px solid var(--ink); }
+.divider .ask { color: var(--ink-2); max-width: 75ch; }
+footer { color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+footer a { color: var(--ink-2); }
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { border-left: 0; }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+@media (max-width: 520px) {
+  section.q { padding: 16px; }
+  .calc .inputs, .out { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .chart { height: 260px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <span class="eyebrow">Analyst case study · BTC/USD · Bitstamp 1-minute bars</span>
+    <h1>Bitcoin Market Intelligence</h1>
+    <p class="lede">I took 14 years of one-minute Bitcoin prices and answered five decisions a retail crypto-investing app has to make: how to talk about cycles, how much risk customers carry, when to run operations, whether to default to recurring buys, and whether to slow down panic selling.</p>
+    <div class="ticker" id="ticker"></div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#cycles">Q1 Cycles</a><a href="#risk">Q2 Risk</a><a href="#liquidity">Q3 Trading hours</a>
+    <a href="#dca">Q4 Recurring buy</a><a href="#crash">Q5 Crash selling</a>
+    <a href="#etf">A1 ETF impact</a><a href="#regimes">A2 Regimes &amp; VaR</a><a href="#forecast">A3 Forecasting</a><a href="#rigor">A4 Rigor</a><a href="#decisions">Decisions</a>
+  </nav>
+
+  <section class="q" id="cycles">
+    <div class="qhead"><span class="eyebrow">Q1 · Strategy</span><h2>How do Bitcoin's cycles behave, and where are we now?</h2></div>
+    <div class="cols">
+      <div class="stack">
+        <div class="ctl">
+          <div class="seg" role="group" aria-label="Scale"><button id="sc-log" aria-pressed="true">Log</button><button id="sc-lin" aria-pressed="false">Linear</button></div>
+          <div class="seg" role="group" aria-label="Range" id="rng"><button data-y="0" aria-pressed="true">All</button><button data-y="5" aria-pressed="false">5Y</button><button data-y="2" aria-pressed="false">2Y</button><button data-y="1" aria-pressed="false">1Y</button></div>
+        </div>
+        <div class="chart"><canvas id="c-price" aria-label="Bitcoin weekly close price"></canvas></div>
+        <div class="chart xs"><canvas id="c-dd" aria-label="Drawdown from all-time high"></canvas></div>
+        <h3>Each halving cycle, indexed to 1× on halving day</h3>
+        <div class="legend" id="lg-cycles"></div>
+        <div class="chart sm"><canvas id="c-cycles" aria-label="Halving cycles indexed"></canvas></div>
+      </div>
+      <div class="findings">
+        <ul id="f-cycles"></ul>
+        <div class="tablewrap"><table id="t-cycles"></table></div>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Stop using "the next cycle will repeat" in marketing. Gains shrink every cycle, so plan growth campaigns around the 12–18-month post-halving window but don't promise its size.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="risk">
+    <div class="qhead"><span class="eyebrow">Q2 · Risk &amp; compliance</span><h2>How much risk do customers carry, and is it changing?</h2></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Annualised volatility by year</h3>
+        <div class="chart sm"><canvas id="c-vol" aria-label="Annualised volatility by year"></canvas></div>
+        <div class="tablewrap"><table id="t-eras"></table></div>
+      </div>
+      <div class="findings">
+        <ul id="f-risk"></ul>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Recalibrate risk disclosures, collateral haircuts and "typical daily move" copy on a rolling 2-year window. Full-history numbers overstate today's risk by about 2×.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="liquidity">
+    <div class="qhead"><span class="eyebrow">Q3 · Operations &amp; growth</span><h2>When does the market actually trade?</h2><p class="ask">Median USD volume per hour of the week, 2019–2026, indexed so 1.0× is the average hour. Hover a cell for its value.</p></div>
+    <div class="cols">
+      <div class="stack">
+        <div class="hmwrap"><div class="hm" id="hm-vol"></div></div>
+        <div class="scale"><span>quiet</span><span class="bar" id="sc-vol"></span><span>busy</span></div>
+        <h3>Daily volume vs. the average weekday</h3>
+        <div class="chart xs"><canvas id="c-weekday" aria-label="Volume by weekday"></canvas></div>
+      </div>
+      <div class="findings">
+        <ul id="f-liq"></ul>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Maintenance and deploys: <b>Saturday 03:00 UTC</b>. Peak support staffing: <b>Mon–Fri 13:00–17:00 UTC</b>. Never ship app releases into the 14:00 UTC peak, which is both the busiest and the most volatile hour.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="dca">
+    <div class="qhead"><span class="eyebrow">Q4 · Product</span><h2>Should Recurring Buy be the default way to invest?</h2></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Share of buy days in profit after each holding period (since 2014)</h3>
+        <div class="chart sm"><canvas id="c-hold" aria-label="Probability of profit by holding period"></canvas></div>
+        <div class="calc" id="calc">
+          <h3>Recurring buy calculator</h3>
+          <div class="inputs">
+            <label for="in-start">Start month<select id="in-start"></select></label>
+            <label for="in-h">Months of buying<select id="in-h"></select></label>
+            <label for="in-amt">Weekly amount ($)<input id="in-amt" type="number" min="10" step="10" value="100"></label>
+          </div>
+          <div class="out" id="calc-out"></div>
+          <div class="legend"><span><i style="background:var(--blue)"></i>Recurring buy value</span><span><i style="background:var(--orange)"></i>Lump sum value</span><span><i style="background:var(--muted)"></i>Amount invested</span></div>
+          <div class="chart sm"><canvas id="c-calc" aria-label="Recurring buy simulation"></canvas></div>
+        </div>
+        <h3>Weekly recurring-buy ROI by start quarter (rows) and months invested (columns)</h3>
+        <div class="hmwrap"><div class="hm cohort" id="hm-cohort"></div></div>
+        <div class="scale"><span>loss</span><span class="bar" id="sc-coh"></span><span>gain</span></div>
+      </div>
+      <div class="findings">
+        <ul id="f-dca"></ul>
+        <div class="tablewrap"><table id="t-dca"></table></div>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Make <b>weekly Recurring Buy</b> the default onboarding path and sell it as a smoother ride, not higher returns. Don't build a "best day to buy" optimiser.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="crash">
+    <div class="qhead"><span class="eyebrow">Q5 · Product &amp; customer experience</span><h2>Should we add a cool-down before selling on a crash day?</h2></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Median forward return after a one-day drop of 10% or more</h3>
+        <div class="legend"><span><i style="background:var(--blue)"></i>After a −10% day</span><span><i style="background:var(--orange)"></i>Any day (baseline)</span></div>
+        <div class="chart sm"><canvas id="c-crash" aria-label="Forward returns after crash days"></canvas></div>
+        <div class="tablewrap"><table id="t-crash"></table></div>
+      </div>
+      <div class="findings">
+        <ul id="f-crash"></ul>
+        <div class="decision"><span class="eyebrow">Decision</span><p><b>Deprioritise</b> the cool-down screen. It would almost never fire in today's market, and a lower trigger has no evidence behind it. Keep it on the backlog and revisit if 90-day volatility returns above 80%.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider">
+    <span class="eyebrow">Part 2 · Advanced analysis</span>
+    <h2>Causal inference, regime models, forecasting and statistical rigor</h2>
+    <p class="ask">Part 1 described what happened. Part 2 tests whether it holds up and what drove it, and that changed two of the recommendations.</p>
+  </div>
+
+  <section class="q" id="etf">
+    <div class="qhead"><span class="eyebrow">A1 · Causal inference</span><h2>Did the January 2024 spot-ETF launch change how Bitcoin trades?</h2>
+      <p class="ask">Weekly metrics two years either side of the launch, with autocorrelation-robust (HAC) tests, a structural-break scan, and 40 placebo event dates.</p></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Share of weekday volume traded in US hours (14:00–21:00 UTC)</h3>
+        <div class="legend"><span><i style="background:var(--muted)"></i>Before ETF</span><span><i style="background:var(--blue)"></i>After ETF</span><span><i style="background:var(--ink)"></i>Period mean</span></div>
+        <div class="chart sm"><canvas id="c-etf" aria-label="US-session share of volume before and after ETF launch"></canvas></div>
+        <div class="tablewrap"><table id="t-etf"></table></div>
+      </div>
+      <div class="findings">
+        <ul id="f-etf"></ul>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Don't justify lower risk limits with "ETFs made Bitcoin safer": volatility fell, but the break came 17 months earlier. Do shift ops coverage and campaign timing toward US hours, where activity is growing.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="regimes">
+    <div class="qhead"><span class="eyebrow">A2 · Risk modelling</span><h2>Which volatility regime are we in, and can we forecast risk?</h2>
+      <p class="ask">3-state Markov-switching model on daily returns, plus a GARCH(1,1) with fat-tailed errors, backtested out of sample from 2020 against realized volatility from minute data.</p></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Share of days in each regime, by year</h3>
+        <div class="legend"><span><i style="background:var(--calm)"></i>Calm</span><span><i style="background:var(--blue)"></i>Normal</span><span><i style="background:var(--neg)"></i>Stress</span></div>
+        <div class="chart sm"><canvas id="c-regimes" aria-label="Regime share by year"></canvas></div>
+        <h3>99% one-day VaR backtest, 2020–2026</h3>
+        <div class="tablewrap"><table id="t-var"></table></div>
+      </div>
+      <div class="findings">
+        <ul id="f-reg"></ul>
+        <div class="tablewrap"><table id="t-regimes"></table></div>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Compute margin and collateral VaR with fat-tailed GARCH instead of normal-distribution EWMA. Alert risk and support when the model's stress probability goes above 50%.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="forecast">
+    <div class="qhead"><span class="eyebrow">A3 · Forecasting</span><h2>Can we forecast next week's trading volume for staffing?</h2>
+      <p class="ask">Every Monday, forecast all 168 hours of the coming week using only data at least a week old. Rolling-origin backtest over 2025–2026.</p></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>One example week: hourly USD volume</h3>
+        <div class="legend"><span><i style="background:var(--muted)"></i>Actual</span><span><i style="background:var(--blue)"></i>4-week profile, bias-corrected</span><span><i style="background:var(--orange)"></i>Gradient boosting</span></div>
+        <div class="chart sm"><canvas id="c-fc" aria-label="Volume forecast example week"></canvas></div>
+        <div class="tablewrap"><table id="t-fc"></table></div>
+      </div>
+      <div class="findings">
+        <ul id="f-fc"></ul>
+        <div class="decision"><span class="eyebrow">Decision</span><p>Ship the bias-corrected 4-week seasonal profile as the staffing forecast. It's transparent and as accurate as ML. Hold an on-call buffer for the roughly ±40% daily error instead of chasing model accuracy.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="rigor">
+    <div class="qhead"><span class="eyebrow">A4 · Statistical rigor</span><h2>Which findings are real, and what should a customer expect?</h2>
+      <p class="ask">Each claim is re-tested with permutation or bootstrap tests that respect weekly and autocorrelated structure, with the false-discovery rate controlled across all tests. A block-bootstrap Monte Carlo then simulates 10,000 four-year recurring-buy plans.</p></div>
+    <div class="tablewrap"><table id="t-sig"></table></div>
+    <div class="cols">
+      <div class="stack">
+        <h3>Simulated return on a weekly plan (post-2021 market)</h3>
+        <div class="legend"><span><i style="background:var(--band-1)"></i>5th–95th percentile</span><span><i style="background:var(--band-2)"></i>25th–75th</span><span><i style="background:var(--blue)"></i>Median</span></div>
+        <div class="chart sm"><canvas id="c-mc" aria-label="Monte Carlo fan chart"></canvas></div>
+      </div>
+      <div class="findings">
+        <ul id="f-mc"></ul>
+        <div class="decision"><span class="eyebrow">Decision · revises part 1</span><p>Don't show historical "99.7% of 3-year holds were profitable" odds in the app. Show the simulated range with a plain-language chance of loss. It's more honest, and it still makes the case for recurring buys through the smaller downside.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="q" id="decisions">
+    <div class="qhead"><span class="eyebrow">Summary</span><h2>Decisions and how we'd measure them</h2></div>
+    <div class="tablewrap"><table id="t-dec"></table></div>
+  </section>
+
+  <footer>
+    <p>Data: Kaggle "Bitcoin Historical Data" (Bitstamp BTC/USD 1-minute OHLCV). Single-exchange volume is a proxy for market activity. Backtests ignore fees and spreads. Past performance does not predict future results; nothing here is investment advice.</p>
+    <p>Built with Python (pandas, matplotlib), SQLite and Chart.js. Figures are generated by <span class="mono">src/export_dashboard.py</span>.</p>
+    <p>Interactive Tableau version: <a href="https://public.tableau.com/app/profile/deepti.singh.kushwaha/viz/bitcoinanalysis_17932796615520/RecurringBuyDecision" target="_blank" rel="noopener">Bitcoin Market Intelligence on Tableau Public</a>.</p>
+  </footer>
+</div>
+<div id="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D = /*__DATA__*/null;
+const $ = (s) => document.querySelector(s);
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const pct = (v, d = 0) => (v > 0 ? "+" : "") + (v * 100).toFixed(d) + "%";
+const pctU = (v, d = 0) => (v * 100).toFixed(d) + "%";
+const usd = (v) => v >= 1e6 ? "$" + (v / 1e6).toFixed(1) + "M" : v >= 1e3 ? "$" + (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + "K" : "$" + (v >= 10 ? v.toFixed(0) : v.toFixed(2));
+const usdFull = (v) => "$" + Math.round(v).toLocaleString("en-US");
+
+/* ---------- static text ---------- */
+const K = D.kpi;
+$("#ticker").innerHTML = `<span>Data through <b>${D.asOf}</b></span><span><b>${(K.minutes / 1e6).toFixed(2)}M</b> one-minute bars</span><span>Since <b>2012-01-01</b></span><span>Analysis: Python · SQL · Chart.js</span>`;
+$("#kpis").innerHTML = [
+  ["Last close", usdFull(K.last), `as of ${D.asOf}`],
+  ["From all-time high", `<span class="neg">${pct(K.drawdown)}</span>`, `ATH ${usdFull(K.ath)} on ${K.athDate}`],
+  ["30-day volatility", pctU(K.vol30), `annualised; ${pctU(K.volEarly)} in 2012–16`],
+  ["3-year hold in profit", pctU(D.holding.find(h => h.horizon === "3 years").prob_profit, 1), "of all buy days since 2014"],
+].map(([l, v, s]) => `<div class="kpi"><span class="eyebrow">${l}</span><span class="v">${v}</span><span class="s">${s}</span></div>`).join("");
+
+const cyc = D.cycleTable;
+$("#f-cycles").innerHTML = `
+  <li>Every cycle peaked <b>${cyc[0].days_halving_to_peak}–${Math.max(...cyc.map(c => c.days_halving_to_peak))} days</b> after the halving.</li>
+  <li>The gains shrink each time: <b>${cyc.map(c => c.halving_to_peak_multiple.toFixed(1) + "×").join(" → ")}</b> from halving to peak.</li>
+  <li>Bear markets get shallower too: <b>${cyc.map(c => pctU(c.post_peak_drawdown)).join(", ")}</b> from peak to low.</li>
+  <li>Today: <b>${pct(K.drawdown)}</b> below the ${K.athDate.slice(0, 7)} high. This is a drawdown regime, not a bull market.</li>`;
+table("#t-cycles", ["Halving", "Peak", "Days", "Multiple", "Bear low"], cyc.map(c => [c.halving.slice(0, 4), usd(c.cycle_peak), c.days_halving_to_peak, c.halving_to_peak_multiple.toFixed(1) + "×", pctU(c.post_peak_drawdown)]));
+
+const E = D.eras;
+$("#f-risk").innerHTML = `
+  <li>Annualised volatility fell from <b>${pctU(E[0].ann_volatility)}</b> in 2012–16 to <b>${pctU(E[3].ann_volatility)}</b> in the ETF era.</li>
+  <li>Days moving ±10% went from <b>${pctU(E[0].days_abs_move_gt_10pct, 1)}</b> of days to <b>${pctU(E[3].days_abs_move_gt_10pct, 1)}</b>.</li>
+  <li>The 1-in-20-day loss (VaR 95%) shrank from <b>${pctU(E[0].VaR_95, 1)}</b> to <b>${pctU(E[3].VaR_95, 1)}</b>.</li>
+  <li>Bitcoin is still about 3× as volatile as US equities, so the risk is lower but not low.</li>`;
+table("#t-eras", ["Era", "Volatility", "VaR 95", "CVaR 95", "±10% days", "Worst day"], E.map(e => [e.era, pctU(e.ann_volatility), pctU(e.VaR_95, 1), pctU(e.CVaR_95, 1), pctU(e.days_abs_move_gt_10pct, 1), pctU(e.worst_day, 1)]));
+
+const wk = D.weekday, flat = D.volume.z.flat(), vmax = Math.max(...flat), vmin = Math.min(...flat);
+const wkend = (wk[5].volume_vs_weekday_avg + wk[6].volume_vs_weekday_avg) / 2;
+$("#f-liq").innerHTML = `
+  <li>The peak is <b>Mon–Fri 13:00–16:00 UTC</b>, when the US open overlaps the European afternoon. The busiest hour runs at <b>${vmax.toFixed(1)}×</b> average.</li>
+  <li>The quietest slot is <b>Sat/Sun 02:00–06:00 UTC</b>, down to <b>${vmin.toFixed(2)}×</b>.</li>
+  <li>Weekend days trade about <b>${pctU(wkend)}</b> of a weekday's volume.</li>
+  <li>Price moves follow the same shape, so the busiest hour is also the most volatile one.</li>`;
+
+const H = D.dca, wd = D.weekdayDca, wdSpread = Math.max(...wd.map(w => w.vs_best_day));
+const h12 = H.find(h => h.horizon_months === 12), h48 = H.find(h => h.horizon_months === 48);
+$("#f-dca").innerHTML = `
+  <li>Holding time matters most. A 1-day hold was a coin flip (<b>${pctU(D.holding[0].prob_profit)}</b>), while 3-year holds were in profit <b>${pctU(D.holding.find(h => h.horizon === "3 years").prob_profit, 1)}</b> of the time.</li>
+  <li><b>Lump sum earns more on median</b>, beating weekly buys in ${pctU(1 - h12.share_dca_beats_lump)}–${pctU(1 - h48.share_dca_beats_lump)} of cohorts.</li>
+  <li><b>Recurring buys shrink the downside.</b> The worst 12-month result is ${pctU(h12.dca_worst_roi)} instead of ${pctU(h12.lump_worst_roi)}, and the spread between cohorts is about 60% narrower.</li>
+  <li>The weekday a plan runs on changes average cost by at most <b>${pctU(wdSpread, 1)}</b>.</li>`;
+table("#t-dca", ["Held", "DCA worst", "Lump worst", "DCA median", "Lump median"], H.map(h => [h.horizon_months + "m", pctU(h.dca_worst_roi), pctU(h.lump_worst_roi), pct(h.dca_median_roi), pct(h.lump_median_roi)]));
+
+const c5_30 = D.crash5.find(c => c.horizon_days === 30);
+const C = D.crash, c1 =C.find(c => c.horizon_days === 1), c30 = C.find(c => c.horizon_days === 30), c365 = C.find(c => c.horizon_days === 365);
+$("#f-crash").innerHTML = `
+  <li>After the <b>${D.crashEvents}</b> one-day drops of 10% or more since 2014, the next day was up <b>${pctU(c1.after_crash_prob_up)}</b> of the time, versus ${pctU(c1.baseline_prob_up)} on a normal day.</li>
+  <li>The 30-day median after a crash was <b>${pct(c30.after_crash_median, 1)}</b>, against ${pct(c30.baseline_median, 1)} normally. Panic sellers usually sell near a short-term low.</li>
+  <li>The bounce is short-lived. One year later, crash-day buyers did <b>worse</b> than average (${pct(c365.after_crash_median)} vs ${pct(c365.baseline_median)}) because crashes cluster in bear markets.</li>
+  <li><b>The trigger has nearly disappeared.</b> There ${D.crashSince2024 === 1 ? "has been one −10% day" : `have been ${D.crashSince2024} −10% days`} since 2024. At a looser −5% trigger (${D.crash5Events} events) the rebound is gone: the next 30 days were up only <b>${pctU(c5_30.after_crash_prob_up)}</b> of the time, against ${pctU(c5_30.baseline_prob_up)} baseline.</li>`;
+table("#t-crash", ["Horizon", "Events", "Median after crash", "Up after crash", "Median baseline"], C.map(c => [c.horizon_days + "d", c.events, pct(c.after_crash_median, 1), pctU(c.after_crash_prob_up), pct(c.baseline_median, 1)]));
+
+
+
+function table(sel, head, rows, wrapText) {
+  $(sel).innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td${wrapText || (i === 0 && typeof c === "string" && c.length > 12) ? ' class="txt"' : ""}>${c}</td>`).join("")}</tr>`).join("")}</tbody>`;
+}
+
+/* ---------- heatmaps (CSS grids with hover tips) ---------- */
+const tip = $("#tip");
+function bindTip(el) {
+  el.addEventListener("mousemove", (e) => {
+    const t = e.target.dataset.tip;
+    if (!t) { tip.hidden = true; return; }
+    tip.textContent = t; tip.hidden = false;
+    const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+    tip.style.left = x + "px"; tip.style.top = (e.clientY + 14) + "px";
+  });
+  el.addEventListener("mouseleave", () => tip.hidden = true);
+}
+const seqColor = (t) => `color-mix(in oklab, var(--blue) ${Math.round(8 + 92 * t)}%, var(--panel))`;
+(function volHeatmap() {
+  const el = $("#hm-vol");
+  el.style.gridTemplateColumns = `38px repeat(24, minmax(16px, 1fr))`;
+  let html = "<span></span>" + Array.from({ length: 24 }, (_, h) => `<span class="cl">${h % 3 === 0 ? String(h).padStart(2, "0") : ""}</span>`).join("");
+  D.volume.z.forEach((row, r) => {
+    html += `<span class="rl">${D.volume.days[r].slice(0, 3)}</span>`;
+    row.forEach((v, h) => {
+      const t = (Math.log(v) - Math.log(vmin)) / (Math.log(vmax) - Math.log(vmin));
+      html += `<span class="cell" style="background:${seqColor(t)}" data-tip="${D.volume.days[r]} ${String(h).padStart(2, "0")}:00 UTC · ${v.toFixed(2)}× avg"></span>`;
+    });
+  });
+  el.innerHTML = html; bindTip(el);
+  $("#sc-vol").style.background = `linear-gradient(90deg, ${seqColor(0)}, ${seqColor(0.5)}, ${seqColor(1)})`;
+})();
+const divColor = (roi) => {
+  if (roi == null) return "transparent";
+  const z = Math.log1p(roi);
+  if (z < 0) return `color-mix(in oklab, var(--neg) ${Math.round(15 + 85 * Math.min(1, z / Math.log1p(-0.6)))}%, var(--panel))`;
+  return `color-mix(in oklab, var(--blue) ${Math.round(10 + 90 * Math.min(1, z / Math.log1p(15)))}%, var(--panel))`;
+};
+(function cohortHeatmap() {
+  const el = $("#hm-cohort"), { rows, cols, z } = D.cohorts;
+  el.style.gridTemplateColumns = `56px repeat(${cols.length}, minmax(30px, 1fr))`;
+  let html = "<span></span>" + cols.map(c => `<span class="cl">${c}m</span>`).join("");
+  rows.forEach((r, i) => {
+    html += `<span class="rl">${r.endsWith("Q1") ? r.slice(0, 4) : ""}</span>`;
+    z[i].forEach((v, j) => {
+      html += `<span class="cell" style="background:${divColor(v)}"${v == null ? "" : ` data-tip="Started ${r} · ${cols[j]} months → ${pct(v)}"`}></span>`;
+    });
+  });
+  el.innerHTML = html; bindTip(el);
+  $("#sc-coh").style.background = `linear-gradient(90deg, ${divColor(-0.6)}, ${divColor(-0.1)}, var(--panel), ${divColor(1)}, ${divColor(15)})`;
+})();
+
+/* ---------- Chart.js ---------- */
+const charts = {};
+let priceScale = "logarithmic", rangeYears = 0;
+function base() {
+  const ink2 = css("--ink-2"), muted = css("--muted"), line = css("--line");
+  Chart.defaults.font.family = css("--font-mono");
+  Chart.defaults.font.size = 11;
+  Chart.defaults.color = muted;
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: { backgroundColor: css("--ink"), titleColor: css("--panel"), bodyColor: css("--panel"), padding: 8, cornerRadius: 6, displayColors: true, boxWidth: 8, boxHeight: 8, usePointStyle: true },
+    },
+    scales: {
+      x: { grid: { display: false }, border: { color: css("--axis") }, ticks: { color: muted, maxRotation: 0, autoSkipPadding: 18 } },
+      y: { grid: { color: line }, border: { display: false }, ticks: { color: muted } },
+    },
+  };
+}
+function make(id, cfg) { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), cfg); }
+const merge = (a, b) => { for (const k in b) a[k] = (b[k] && typeof b[k] === "object" && !Array.isArray(b[k]) && a[k]) ? merge(a[k], b[k]) : b[k]; return a; };
+
+function priceCharts() {
+  const P = D.price; let i0 = 0;
+  if (rangeYears) { const cut = new Date(P.t[P.t.length - 1]); cut.setFullYear(cut.getFullYear() - rangeYears); i0 = P.t.findIndex(t => new Date(t) >= cut); }
+  const t = P.t.slice(i0), yearTick = function (v, i) { const s = this.getLabelForValue(v); return rangeYears && rangeYears <= 2 ? s.slice(0, 7) : s.slice(0, 4); };
+  make("c-price", { type: "line", data: { labels: t, datasets: [{ label: "Weekly close", data: P.close.slice(i0), borderColor: css("--blue"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0 }] },
+    options: merge(base(), { scales: { x: { ticks: { callback: yearTick, maxTicksLimit: 9 } }, y: { type: priceScale, ticks: { callback: (v) => priceScale === "logarithmic" && !Number.isInteger(Math.log10(v)) ? null : usd(v) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => " " + usdFull(c.parsed.y) } } } }) });
+  make("c-dd", { type: "line", data: { labels: t, datasets: [{ label: "Drawdown", data: P.dd.slice(i0), borderColor: css("--neg"), borderWidth: 1.5, pointRadius: 0, fill: true, backgroundColor: css("--neg") + "22" }] },
+    options: merge(base(), { scales: { x: { ticks: { callback: yearTick, maxTicksLimit: 9 } }, y: { max: 0, min: -1, ticks: { stepSize: 0.25, callback: (v) => pctU(v) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => " " + pctU(c.parsed.y, 1) + " from ATH" } } } }) });
+}
+function otherCharts() {
+  const series = [css("--blue"), css("--orange"), css("--aqua"), css("--yellow")];
+  $("#lg-cycles").innerHTML = D.cycles.map((c, i) => `<span><i style="background:${series[i]}"></i>${c.year} halving</span>`).join("");
+  make("c-cycles", { type: "line", data: { datasets: D.cycles.map((c, i) => ({ label: c.year + " halving", data: c.x.map((x, j) => ({ x, y: c.y[j] })), borderColor: series[i], borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 })) },
+    options: merge(base(), { interaction: { mode: "nearest", intersect: false }, scales: { x: { type: "linear", title: { display: true, text: "days since halving", color: css("--muted") }, ticks: { stepSize: 200 } }, y: { type: "logarithmic", ticks: { callback: (v) => [1, 3, 10, 30, 100].includes(v) ? v + "×" : null } } },
+      plugins: { tooltip: { callbacks: { title: (c) => "Day " + c[0].parsed.x, label: (c) => ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}×` } } } }) });
+  const Y = D.years;
+  make("c-vol", { type: "bar", data: { labels: Y.map(y => y.year + (y.partial_year ? "*" : "")), datasets: [{ label: "Volatility", data: Y.map(y => y.ann_volatility), backgroundColor: css("--blue"), borderRadius: { topLeft: 4, topRight: 4 }, maxBarThickness: 24 }] },
+    options: merge(base(), { scales: { y: { ticks: { callback: (v) => pctU(v) } } }, plugins: { tooltip: { callbacks: { label: (c) => " " + pctU(c.parsed.y) + " annualised" } } } }) });
+  make("c-weekday", { type: "bar", data: { labels: wk.map(w => w.weekday.slice(0, 3)), datasets: [{ label: "vs weekday avg", data: wk.map(w => w.volume_vs_weekday_avg), backgroundColor: wk.map((w, i) => i >= 5 ? css("--orange") : css("--blue")), borderRadius: { topLeft: 4, topRight: 4 }, maxBarThickness: 24 }] },
+    options: merge(base(), { scales: { y: { min: 0, ticks: { callback: (v) => v.toFixed(1) + "×" } } }, plugins: { tooltip: { callbacks: { label: (c) => " " + c.parsed.y.toFixed(2) + "× average weekday" } } } }) });
+  make("c-hold", { type: "bar", data: { labels: D.holding.map(h => h.horizon), datasets: [{ label: "In profit", data: D.holding.map(h => h.prob_profit), backgroundColor: css("--blue"), borderRadius: { topLeft: 4, topRight: 4 }, maxBarThickness: 24 }] },
+    options: merge(base(), { scales: { y: { min: 0, max: 1, ticks: { callback: (v) => pctU(v) } } }, plugins: { tooltip: { callbacks: { label: (c) => { const h = D.holding[c.dataIndex]; return [` ${pctU(h.prob_profit, 1)} of buy days in profit`, ` median return ${pct(h.median_return)}`, ` 10th percentile ${pct(h.p10_return)}`]; } } } } }) });
+  const Cr = D.crash.filter(c => c.horizon_days <= 90);
+  make("c-crash", { type: "bar", data: { labels: Cr.map(c => `next ${c.horizon_days}d`), datasets: [
+      { label: "After a −10% day", data: Cr.map(c => c.after_crash_median), backgroundColor: css("--blue"), borderRadius: { topLeft: 4, topRight: 4 }, maxBarThickness: 24 },
+      { label: "Any day", data: Cr.map(c => c.baseline_median), backgroundColor: css("--orange"), borderRadius: { topLeft: 4, topRight: 4 }, maxBarThickness: 24 }] },
+    options: merge(base(), { datasets: { bar: { categoryPercentage: 0.5, barPercentage: 0.9 } }, scales: { y: { ticks: { callback: (v) => pct(v, 0) } } }, plugins: { tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${pct(c.parsed.y, 1)}` } } } }) });
+}
+
+/* ---------- recurring-buy calculator (same rules as analysis.dca_vs_lump_sum) ---------- */
+const DAY = 864e5, c0 = Date.parse(D.closes.start + "T00:00:00Z"), CL = D.closes.v, lastT = c0 + (CL.length - 1) * DAY;
+const addMonths = (t, m) => { const d = new Date(t); d.setUTCMonth(d.getUTCMonth() + m); return d.getTime(); };
+const monthLabel = (t) => new Date(t).toISOString().slice(0, 7);
+function simulate(startT, months, amt) {
+  const endT = addMonths(startT, months), endIdx = Math.min(Math.round((endT - c0) / DAY), CL.length - 1);
+  let coins = 0, invested = 0; const first = CL[Math.round((startT - c0) / DAY)], pts = [];
+  const nBuys = Math.ceil((endT - startT) / (7 * DAY));
+  for (let k = 0; k < nBuys; k++) { const i = Math.round((startT - c0) / DAY) + 7 * k; coins += amt / CL[i]; invested += amt; pts.push({ i, coins, invested }); }
+  const total = invested, series = [];
+  for (const p of pts) series.push({ t: monthLabel(c0 + p.i * DAY) + "-" + new Date(c0 + p.i * DAY).toISOString().slice(8, 10), dca: p.coins * CL[p.i], inv: p.invested, lump: total * CL[p.i] / first });
+  const endP = CL[endIdx];
+  series.push({ t: new Date(c0 + endIdx * DAY).toISOString().slice(0, 10), dca: coins * endP, inv: total, lump: total * endP / first });
+  return { invested: total, dca: coins * endP, lump: total * endP / first, avgCost: total / coins, series };
+}
+(function calcInit() {
+  const sel = $("#in-start"), hs = $("#in-h");
+  for (let t = c0; addMonths(t, 6) <= lastT; t = addMonths(t, 1)) sel.insertAdjacentHTML("beforeend", `<option value="${t}">${monthLabel(t)}</option>`);
+  [6, 12, 18, 24, 36, 48, 60].forEach(m => hs.insertAdjacentHTML("beforeend", `<option value="${m}">${m}</option>`));
+  sel.value = String(Date.parse("2021-11-01T00:00:00Z")); hs.value = "36";
+  [sel, hs, $("#in-amt")].forEach(el => el.addEventListener("input", runCalc));
+})();
+function runCalc() {
+  const startT = +$("#in-start").value, amt = Math.max(1, +$("#in-amt").value || 100);
+  let months = +$("#in-h").value;
+  while (addMonths(startT, months) > lastT && months > 6) months -= 6;
+  if (months !== +$("#in-h").value) $("#in-h").value = String(months);
+  const r = simulate(startT, months, amt), roi = r.dca / r.invested - 1, lroi = r.lump / r.invested - 1;
+  $("#calc-out").innerHTML = [
+    ["Invested", usdFull(r.invested)], ["Recurring buy", `<span class="${roi >= 0 ? "pos" : "neg"}">${pct(roi, 1)}</span>`],
+    ["Lump sum", `<span class="${lroi >= 0 ? "pos" : "neg"}">${pct(lroi, 1)}</span>`], ["Avg cost / BTC", usdFull(r.avgCost)],
+  ].map(([l, v]) => `<div><span class="l">${l}</span><span class="v">${v}</span></div>`).join("");
+  const s = r.series;
+  make("c-calc", { type: "line", data: { labels: s.map(p => p.t), datasets: [
+      { label: "Recurring buy", data: s.map(p => p.dca), borderColor: css("--blue"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
+      { label: "Lump sum", data: s.map(p => p.lump), borderColor: css("--orange"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
+      { label: "Invested", data: s.map(p => p.inv), borderColor: css("--muted"), borderWidth: 1.5, borderDash: [], pointRadius: 0, pointHoverRadius: 3 }] },
+    options: merge(base(), { scales: { x: { ticks: { callback: function (v) { return this.getLabelForValue(v).slice(0, 7); }, maxTicksLimit: 6 } }, y: { ticks: { callback: (v) => usd(v) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${usdFull(c.parsed.y)}` } } } }) });
+}
+
+/* ---------- part 2: advanced ---------- */
+const X = D.adv;
+const fmtP = (p) => p < 0.001 ? "<0.001" : p.toFixed(3);
+const etfRow = (k) => X.etf.find(r => r.metric.startsWith(k));
+const eVol = etfRow("Realized"), eUs = etfRow("US-session"), eWk = etfRow("Weekend");
+$("#f-etf").innerHTML = `
+  <li><b>Volatility: not the ETF.</b> The mean fell from ${pctU(eVol.pre_mean)} to ${pctU(eVol.post_mean)}, but that's not significant (p = ${fmtP(eVol.mean_diff_p)}). The data puts the break in <b>${eVol.strongest_break_week.slice(0, 7)}</b>, after the 2022 deleveraging, well before the launch.</li>
+  <li><b>US-session share: a real shift.</b> It rose from ${pctU(eUs.pre_mean, 1)} to <b>${pctU(eUs.post_mean, 1)}</b> (HAC p = ${fmtP(eUs.mean_diff_p)}, placebo p = ${fmtP(eUs.placebo_p_value)}). The strongest break is ${eUs.strongest_break_week.slice(0, 7)}, so it built up over the ETF's first year.</li>
+  <li><b>Weekend share: no change</b> (${pctU(eWk.pre_mean, 1)} → ${pctU(eWk.post_mean, 1)}, p = ${fmtP(eWk.mean_diff_p)}).</li>
+  <li>Volume here is from one exchange, and the April 2024 halving falls in the same window. Treat this as evidence, not proof.</li>`;
+table("#t-etf", ["Metric", "Before", "After", "HAC p", "Placebo p", "Break found"], X.etf.map(r => [r.metric, pctU(r.pre_mean, 1), pctU(r.post_mean, 1), fmtP(r.mean_diff_p), fmtP(r.placebo_p_value), r.strongest_break_week.slice(0, 7)]));
+
+const RS = X.regimeSummary, rs = (n) => RS.find(r => r.regime === n);
+const vbt = (m, l) => X.varBacktest.find(v => v.model === m && v.level === l);
+const g99 = vbt("GARCH(1,1)-t", 0.99), e99 = vbt("EWMA (RiskMetrics)", 0.99);
+$("#f-reg").innerHTML = `
+  <li>Three regimes: <b>Calm</b> (${pctU(rs("Calm").ann_vol)} annualised vol), <b>Normal</b> (${pctU(rs("Normal").ann_vol)}) and <b>Stress</b> (${pctU(rs("Stress").ann_vol)}). Stress is the only one with negative average returns.</li>
+  <li>Stress is sticky: it's expected to last <b>${rs("Stress").expected_duration_days.toFixed(0)} days</b>, against about 4 for the others. It covered ${pctU(rs("Stress").share_of_days)} of days since 2014 but only <b>${pctU(rs("Stress").share_of_days_2024plus, 1)}</b> since 2024.</li>
+  <li>Today (${X.regimeNow.date}) the model reads <b>${X.regimeNow.regime}</b> (${pctU(X.regimeNow[X.regimeNow.regime])} probability).</li>
+  <li>At 99%, fat-tailed GARCH breached <b>${g99.breaches}</b> times against ${g99.expected_breaches.toFixed(0)} expected. The normal-distribution EWMA used across the industry breached <b>${e99.breaches}</b> times, double its promise. Fitted tail thickness is ν ≈ ${X.garchNu.toFixed(1)}.</li>`;
+table("#t-regimes", ["Regime", "Ann. vol", "Days", "Since 2024", "Lasts"], RS.map(r => [r.regime, pctU(r.ann_vol), pctU(r.share_of_days), pctU(r.share_of_days_2024plus, 1), r.expected_duration_days.toFixed(0) + "d"]));
+table("#t-var", ["Model", "Breaches", "Expected", "Kupiec p", "Calibrated"], X.varBacktest.filter(v => v.level === 0.99).map(v => [v.model, v.breaches, v.expected_breaches.toFixed(0), fmtP(v.kupiec_p), v.kupiec_p > 0.05 ? "yes" : "no"]));
+
+const FS = X.forecastScores, fs = (m) => FS.find(r => r.model === m);
+const naive = fs("Seasonal naive (last week)"), s4 = fs("4-week seasonal mean"), s4b = fs("4-week mean, bias-corrected"), gb = fs("Gradient boosting");
+$("#f-fc").innerHTML = `
+  <li>A 4-week average of the same hour cuts hourly error by <b>${pctU(s4.skill_vs_naive)}</b> compared with "same hour last week". It finds <b>${pctU(s4.top20_hours_hit_rate)}</b> of next week's 20 busiest hours, against 12% by chance.</li>
+  <li><b>Gradient boosting adds nothing</b> (WAPE ${s4b.WAPE.toFixed(2)} vs ${gb.WAPE.toFixed(2)}). Volume level is driven by news; only the weekly shape is predictable.</li>
+  <li>WAPE rewards under-forecasting on spiky data: the raw 4-week mean "wins" while under-forecasting total volume by ${pctU(-s4.bias)}. For staffing, under-forecasting costs more, so use the bias-corrected version (bias ${pct(s4b.bias, 1)}).</li>
+  <li>Backtested over ${X.forecastWeeks} weeks, with each week's forecast made only from data available on the Monday.</li>`;
+table("#t-fc", ["Model", "Hourly WAPE", "Daily WAPE", "Bias", "Top-20 hours"], FS.map(r => [r.model, r.WAPE.toFixed(2), r.daily_WAPE.toFixed(2), pct(r.bias, 0), pctU(r.top20_hours_hit_rate)]));
+
+const fmtEst = (r) => r.claim.startsWith("Volatility ratio") ? r.estimate.toFixed(2) + "×" : pct(r.estimate, 1);
+const fmtCI = (r) => r.ci_low == null ? "–" : r.claim.startsWith("Volatility ratio") ? `${r.ci_low.toFixed(2)}–${r.ci_high.toFixed(2)}×` : `${pct(r.ci_low, 1)} to ${pct(r.ci_high, 1)}`;
+table("#t-sig", ["Claim from part 1", "Estimate", "95% CI", "Test", "Adj. p (BH)", "Verdict"], X.sig.map(r => [r.claim, fmtEst(r), fmtCI(r), r.test, fmtP(r.p_adjusted_BH), r.significant_5pct ? '<span class="pos">holds</span>' : '<span class="neg">not significant</span>']), true);
+const mcW = (y) => X.mc.find(r => r.year === y && r.strategy === "Weekly plan"), mcL = (y) => X.mc.find(r => r.year === y && r.strategy === "Lump sum");
+$("#f-mc").innerHTML = `
+  <li>With today's return profile, a weekly plan still has a <b>${pctU(mcW(4).prob_loss)}</b> chance of being at a loss after four years. Resampling all of 2014+ gives ${pctU(X.mcFull.find(r => r.year === 4).prob_loss)}.</li>
+  <li>That contradicts the "≈100% after 3 years" from part 1's historical cohorts. Those windows overlap heavily and come from one exceptional growth era.</li>
+  <li>Weekly plans and lump sums have similar chances of <i>some</i> loss (${pctU(mcW(4).prob_loss)} vs ${pctU(mcL(4).prob_loss)}). In the worst 5% of paths, though, the plan loses <b>${pctU(-mcW(4).expected_shortfall_5pct)}</b> against <b>${pctU(-mcL(4).expected_shortfall_5pct)}</b> for a lump sum.</li>`;
+
+table("#t-dec", ["Decision", "Evidence", "Success metric"], [
+  ["Make weekly Recurring Buy the default onboarding path", `Worst 12-month outcome ${pctU(h12.dca_worst_roi)} vs ${pctU(h12.lump_worst_roi)} for lump sum`, "Share of new users on a plan; 12-month retention"],
+  ["Don't build a best-day-to-buy optimiser", `Weekday cost difference ≤ ${pctU(wdSpread, 1)}`, "Engineering time redirected"],
+  ["Show a simulated outcome range, not historical odds (revised in A4)", `Monte Carlo: ${pctU(D.adv.mc.find(r => r.year === 4 && r.strategy === "Weekly plan").prob_loss)} chance of loss after 4 years vs ≈0% in historical cohorts`, "Sells in first 90 days; complaint rate"],
+  ["Deprioritise the crash-day cool-down", `Rebound after −10% days (n=${D.crashEvents}), but ${D.crashSince2024} such day since 2024 and none at −5% (n=${D.crash5Events})`, "Revisit if 90-day volatility > 80%"],
+  ["Maintenance Sat 03:00 UTC; staff support Mon–Fri 13–17 UTC", `${vmin.toFixed(2)}× vs ${vmax.toFixed(1)}× average hourly volume`, "Incidents in peak hours, support SLA"],
+  ["Compute VaR with fat-tailed GARCH; alert on stress regime", `99% VaR breaches: GARCH-t ${vbt("GARCH(1,1)-t", 0.99).breaches} vs EWMA ${vbt("EWMA (RiskMetrics)", 0.99).breaches} (expected ${vbt("GARCH(1,1)-t", 0.99).expected_breaches.toFixed(0)})`, "VaR breach rate; collateral efficiency"],
+  ["Shift ops and campaign coverage toward US hours", `US-session share ${pctU(etfRow("US-session").pre_mean, 1)} → ${pctU(etfRow("US-session").post_mean, 1)} after the ETF launch`, "Support SLA in 14–21 UTC"],
+  ["Staff with the bias-corrected 4-week volume profile", "As accurate as gradient boosting, transparent, unbiased", "Weekly forecast bias; understaffed hours"],
+].map(r => r.map(x => x)), true);
+
+function advCharts() {
+  const us = X.usShare, launch = us.t.findIndex(t => t >= X.etfLaunch);
+  const meanLine = (from, to, v) => us.t.map((_, i) => i >= from && i < to ? v : null);
+  make("c-etf", { type: "line", data: { labels: us.t, datasets: [
+      { label: "Before ETF", data: us.v.map((v, i) => i < launch ? v : null), borderColor: css("--muted"), borderWidth: 1.5, pointRadius: 0, spanGaps: false },
+      { label: "After ETF", data: us.v.map((v, i) => i >= launch - 1 ? v : null), borderColor: css("--blue"), borderWidth: 1.5, pointRadius: 0 },
+      { label: "Mean before", data: meanLine(0, launch, eUs.pre_mean), borderColor: css("--ink"), borderWidth: 2, pointRadius: 0 },
+      { label: "Mean after", data: meanLine(launch, us.t.length, eUs.post_mean), borderColor: css("--ink"), borderWidth: 2, pointRadius: 0 }] },
+    options: merge(base(), { scales: { x: { ticks: { callback: function (v) { return this.getLabelForValue(v).slice(0, 4); }, maxTicksLimit: 6 } }, y: { ticks: { callback: (v) => pctU(v) } } },
+      plugins: { tooltip: { filter: (i) => i.parsed.y != null, callbacks: { label: (c) => ` ${c.dataset.label}: ${pctU(c.parsed.y, 1)}` } } } }) });
+  const RY = X.regimeYears, seg = (key, col) => ({ label: key, data: RY[key], backgroundColor: css(col), borderColor: css("--panel"), borderWidth: { top: 2 }, borderSkipped: false, maxBarThickness: 24 });
+  make("c-regimes", { type: "bar", data: { labels: RY.years, datasets: [seg("Calm", "--calm"), seg("Normal", "--blue"), seg("Stress", "--neg")] },
+    options: merge(base(), { scales: { x: { stacked: true }, y: { stacked: true, max: 1, ticks: { callback: (v) => pctU(v) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${pctU(c.parsed.y)}` } } } }) });
+  const W = X.forecastWeek;
+  make("c-fc", { type: "line", data: { labels: W.t, datasets: [
+      { label: "Actual", data: W.actual, borderColor: css("--muted"), borderWidth: 1.5, pointRadius: 0 },
+      { label: "4-week profile", data: W.seasonal, borderColor: css("--blue"), borderWidth: 2, pointRadius: 0 },
+      { label: "Gradient boosting", data: W.gbm, borderColor: css("--orange"), borderWidth: 1.5, pointRadius: 0 }] },
+    options: merge(base(), { scales: { x: { ticks: { callback: function (v) { const s = this.getLabelForValue(v); return s.endsWith("00:00") ? s.slice(0, 3) : null; }, autoSkip: false, maxRotation: 0 } }, y: { ticks: { callback: (v) => usd(v) } } },
+      plugins: { tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${usd(c.parsed.y)}` } } } }) });
+  // Chart.js paints dataset 0 on top, so the median comes first and the widest band last.
+  const F = X.fan, months = F.map(f => Math.round(f.day / 30));
+  const band = (k, fill, col) => ({ label: k, data: F.map(f => f[k]), borderWidth: 0, pointRadius: 0, pointHoverRadius: 0, fill, backgroundColor: css(col) });
+  make("c-mc", { type: "line", data: { labels: months, datasets: [
+      { label: "Median", data: F.map(f => f.p50), borderColor: css("--blue"), borderWidth: 2, pointRadius: 0 },
+      band("p75", false, "--band-2"), band("p25", "-1", "--band-2"),
+      band("p95", false, "--band-1"), band("p5", "-1", "--band-1")] },
+    options: merge(base(), { scales: { x: { title: { display: true, text: "years on the plan", color: css("--muted") }, ticks: { callback: function (v) { const m = +this.getLabelForValue(v); return m % 12 === 0 ? String(m / 12) : null; }, autoSkip: false } }, y: { ticks: { callback: (v) => pct(v) } } },
+      plugins: { tooltip: { itemSort: (a, b) => b.parsed.y - a.parsed.y, callbacks: { title: (c) => `Month ${c[0].label}`, label: (c) => ` ${c.dataset.label === "Median" ? "median" : c.dataset.label}: ${pct(c.parsed.y)}` } } } }) });
+}
+
+/* ---------- controls & theming ---------- */
+$("#sc-log").onclick = () => { priceScale = "logarithmic"; $("#sc-log").setAttribute("aria-pressed", "true"); $("#sc-lin").setAttribute("aria-pressed", "false"); priceCharts(); };
+$("#sc-lin").onclick = () => { priceScale = "linear"; $("#sc-lin").setAttribute("aria-pressed", "true"); $("#sc-log").setAttribute("aria-pressed", "false"); priceCharts(); };
+document.querySelectorAll("#rng button").forEach(b => b.onclick = () => {
+  rangeYears = +b.dataset.y; document.querySelectorAll("#rng button").forEach(x => x.setAttribute("aria-pressed", String(x === b))); priceCharts();
+});
+function renderAll() { if (!window.Chart) return; priceCharts(); otherCharts(); advCharts(); runCalc(); }
+renderAll();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", renderAll);
+new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
